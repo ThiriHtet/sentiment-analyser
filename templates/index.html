@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SentimentIQ — Review Analyser</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── CSS VARIABLES ─────────────────────────────────────────────────────── */
+    :root {
+      --bg:        #0b0c0e;
+      --surface:   #111316;
+      --surface2:  #161820;
+      --border:    rgba(255, 255, 255, 0.07);
+      --text:      #e8e6e1;
+      --muted:     #6b6b72;
+      --pos:       #22d68f;
+      --pos-dim:   rgba(34, 214, 143, 0.18);
+      --neg:       #ff4d6d;
+      --neg-dim:   rgba(255, 77, 109, 0.18);
+      --accent:    #7b61ff;
+      --accent2:   #00c2ff;
+      --radius-lg: 20px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    /* ── RESET ─────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── BASE ──────────────────────────────────────────────────────────────── */
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Instrument Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID BACKGROUND ───────────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(123, 97, 255, 0.032) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(123, 97, 255, 0.032) 1px, transparent 1px);
+      background-size: 52px 52px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── RADIAL GLOW ───────────────────────────────────────────────────────── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -28vh; left: 50%;
+      transform: translateX(-50%);
+      width: 80vw; height: 60vh;
+      background: radial-gradient(ellipse at 50% 40%,
+        rgba(123, 97, 255, 0.11) 0%,
+        rgba(0, 194, 255, 0.04) 50%,
+        transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── HEADER ────────────────────────────────────────────────────────────── */
+    header {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 860px;
+      padding: 56px 24px 0;
+      text-align: center;
+      animation: fadeUp 0.55s ease both;
+    }
+
+    .logo-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(123, 97, 255, 0.1);
+      border: 1px solid rgba(123, 97, 255, 0.28);
+      border-radius: 100px;
+      padding: 5px 16px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px; letter-spacing: 0.13em;
+      color: #a99cff;
+      margin-bottom: 24px;
+    }
+    .logo-pill .dot {
+      width: 6px; height: 6px;
+      background: var(--accent); border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2.2s infinite;
+    }
+
+    h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2.5rem, 5.5vw, 4rem);
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin-bottom: 16px;
+    }
+    h1 em { font-style: italic; color: #a99cff; }
+
+    .subtitle {
+      font-size: 15px; color: var(--muted);
+      line-height: 1.65; max-width: 480px;
+      margin: 0 auto 36px;
+    }
+
+    /* ── BADGE ROW ─────────────────────────────────────────────────────────── */
+    .badges {
+      display: flex; justify-content: center;
+      gap: 8px; flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+    .badge {
+      font-family: 'DM Mono', monospace; font-size: 10.5px;
+      padding: 4px 12px; border-radius: 6px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.025);
+    }
+    .badge b { color: var(--text); font-weight: 500; }
+
+    /* ── MAIN ──────────────────────────────────────────────────────────────── */
+    main {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 760px;
+      padding: 0 24px 80px;
+      animation: fadeUp 0.55s 0.12s ease both;
+    }
+
+    /* ── CARD ──────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.45),
+        0 24px 64px rgba(0, 0, 0, 0.55);
+    }
+
+    /* ── FORM ELEMENTS ─────────────────────────────────────────────────────── */
+    .field-label {
+      display: block;
+      font-size: 11px; letter-spacing: 0.09em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.028);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      color: var(--text);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: 15px; line-height: 1.68;
+      resize: vertical; min-height: 150px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+    textarea::placeholder { color: #2e2f36; }
+    textarea:focus {
+      border-color: rgba(123, 97, 255, 0.48);
+      box-shadow: 0 0 0 3px rgba(123, 97, 255, 0.07);
+    }
+
+    /* ── EXAMPLE PILLS ─────────────────────────────────────────────────────── */
+    .examples-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-top: 12px;
+    }
+    .ex-btn {
+      font-size: 12px; padding: 5px 13px;
+      border-radius: 100px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ex-btn:hover {
+      border-color: rgba(123, 97, 255, 0.38);
+      color: var(--text);
+      background: rgba(123, 97, 255, 0.055);
+    }
+
+    /* ── ANALYSE BUTTON ────────────────────────────────────────────────────── */
+    .btn-analyse {
+      margin-top: 20px; width: 100%;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      border: none; border-radius: var(--radius-md);
+      padding: 16px 24px;
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: 15px; font-weight: 600;
+      color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(123, 97, 255, 0.28);
+    }
+    .btn-analyse:hover {
+      opacity: 0.9;
+      box-shadow: 0 6px 28px rgba(123, 97, 255, 0.4);
+    }
+    .btn-analyse:active  { transform: scale(0.987); }
+    .btn-analyse:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+
+    .spinner {
+      display: none;
+      width: 17px; height: 17px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+    }
+
+    /* ── RESULT SECTION ────────────────────────────────────────────────────── */
+    #result-section {
+      margin-top: 26px;
+      opacity: 0; transform: translateY(12px);
+      transition: opacity 0.38s ease, transform 0.38s ease;
+      pointer-events: none;
+    }
+    #result-section.visible {
+      opacity: 1; transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .result-card {
+      border-radius: 16px; padding: 24px 26px;
+      border: 1.5px solid transparent;
+      position: relative; overflow: hidden;
+    }
+    .result-card.positive {
+      background: rgba(34, 214, 143, 0.055);
+      border-color: rgba(34, 214, 143, 0.22);
+      box-shadow: 0 0 48px rgba(34, 214, 143, 0.1);
+    }
+    .result-card.negative {
+      background: rgba(255, 77, 109, 0.055);
+      border-color: rgba(255, 77, 109, 0.22);
+      box-shadow: 0 0 48px rgba(255, 77, 109, 0.1);
+    }
+
+    /* inner glow stripe */
+    .result-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      border-radius: 16px 16px 0 0;
+    }
+    .result-card.positive::before { background: linear-gradient(90deg, var(--pos), transparent); }
+    .result-card.negative::before { background: linear-gradient(90deg, var(--neg), transparent); }
+
+    /* ── VERDICT HEADER ────────────────────────────────────────────────────── */
+    .verdict-header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 22px;
+    }
+    .verdict-icon {
+      width: 54px; height: 54px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; flex-shrink: 0;
+    }
+    .positive .verdict-icon { background: rgba(34, 214, 143, 0.13); }
+    .negative .verdict-icon { background: rgba(255, 77, 109, 0.13); }
+
+    .verdict-label {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.85rem;
+    }
+    .positive .verdict-label { color: var(--pos); }
+    .negative .verdict-label { color: var(--neg); }
+
+    .verdict-sub {
+      font-size: 13px; color: var(--muted);
+      margin-top: 3px;
+    }
+
+    /* ── CONFIDENCE BAR ────────────────────────────────────────────────────── */
+    .conf-row {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 18px;
+    }
+    .conf-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px; color: var(--muted);
+      white-space: nowrap; min-width: 74px;
+    }
+    .conf-track {
+      flex: 1; height: 6px; border-radius: 100px;
+      background: rgba(255, 255, 255, 0.055);
+      overflow: hidden;
+    }
+    .conf-fill {
+      height: 100%; border-radius: 100px; width: 0%;
+      transition: width 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .positive .conf-fill { background: linear-gradient(90deg, #22d68f, #00ffc8); }
+    .negative .conf-fill { background: linear-gradient(90deg, #ff4d6d, #ff8fa0); }
+
+    .conf-pct {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px; font-weight: 500;
+      white-space: nowrap; min-width: 46px; text-align: right;
+    }
+    .positive .conf-pct { color: var(--pos); }
+    .negative .conf-pct { color: var(--neg); }
+
+    /* ── CHIP ROW ──────────────────────────────────────────────────────────── */
+    .chip-row {
+      display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .chip {
+      flex: 1; min-width: 110px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 15px;
+    }
+    .chip-label {
+      font-size: 10px; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .chip-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 15px; color: var(--text);
+    }
+
+    /* ── HISTORY ───────────────────────────────────────────────────────────── */
+    #history-wrap { margin-top: 32px; display: none; }
+
+    .section-label {
+      font-size: 10.5px; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted);
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px;
+      background: var(--border);
+    }
+
+    .history-list { display: flex; flex-direction: column; gap: 7px; }
+
+    .h-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 15px; border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      animation: fadeUp 0.28s ease both;
+    }
+    .h-item:hover {
+      border-color: rgba(123, 97, 255, 0.28);
+      background: rgba(123, 97, 255, 0.035);
+    }
+    .h-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .h-dot.positive { background: var(--pos); box-shadow: 0 0 6px var(--pos); }
+    .h-dot.negative { background: var(--neg); box-shadow: 0 0 6px var(--neg); }
+
+    .h-text {
+      flex: 1; font-size: 13px; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .h-badge {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px; font-weight: 500;
+      flex-shrink: 0;
+    }
+    .h-badge.positive { color: var(--pos); }
+    .h-badge.negative { color: var(--neg); }
+
+    /* ── FOOTER ────────────────────────────────────────────────────────────── */
+    footer {
+      position: relative; z-index: 1;
+      padding: 0 24px 36px;
+      text-align: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px; color: #32333a;
+    }
+
+    /* ── KEYFRAMES ─────────────────────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    /* ── RESPONSIVE ────────────────────────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .card   { padding: 22px 18px; }
+      .badges { gap: 6px; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <header>
+    <div class="logo-pill">
+      <span class="dot"></span>
+      SVM · LinearSVC · TF-IDF
+    </div>
+
+    <h1>Review <em>Sentiment</em><br>Analyser</h1>
+
+    <p class="subtitle">
+      Powered by a trained SVM model with TF-IDF features —
+      80 k vocabulary, unigrams to trigrams.
+      Paste any product review and get an instant prediction.
+    </p>
+
+    <div class="badges">
+      <span class="badge">Model: <b>LinearSVC</b></span>
+      <span class="badge">Features: <b>TF-IDF (1–3 grams)</b></span>
+      <span class="badge">Vocab: <b>80 000</b></span>
+      <span class="badge">Regularisation C: <b>0.2</b></span>
+      <span class="badge">Trained on: <b>100 k reviews</b></span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <main>
+    <div class="card">
+
+      <!-- Input -->
+      <label class="field-label" for="reviewText">Review Text</label>
+      <textarea
+        id="reviewText"
+        placeholder="e.g. This product exceeded all my expectations — the build quality is exceptional and it arrived two days early…"
+      ></textarea>
+
+      <!-- Example pills -->
+      <div class="examples-row">
+        <button class="ex-btn" onclick="fill('Absolutely love this! Best purchase I have made all year. Works perfectly out of the box.')">
+          ✨ Positive
+        </button>
+        <button class="ex-btn" onclick="fill('Complete waste of money. Broke after 3 days, terrible customer service, do not buy.')">
+          💔 Negative
+        </button>
+        <button class="ex-btn" onclick="fill('Great sound quality and comfortable fit. Battery life could be better but overall very satisfied.')">
+          🎧 Mixed-positive
+        </button>
+        <button class="ex-btn" onclick="fill('Disappointed with the quality. The material feels cheap and the stitching came apart quickly.')">
+          🧵 Mixed-negative
+        </button>
+      </div>
+
+      <!-- Button -->
+      <button class="btn-analyse" id="analyseBtn" onclick="analyse()">
+        <span id="btnText">Analyse Sentiment</span>
+        <div  class="spinner" id="spinner"></div>
+      </button>
+
+      <!-- ── Result ── -->
+      <div id="result-section">
+        <div class="result-card" id="resultCard">
+
+          <div class="verdict-header">
+            <div class="verdict-icon" id="verdictIcon"></div>
+            <div>
+              <div class="verdict-label" id="verdictLabel"></div>
+              <div class="verdict-sub"   id="verdictSub"></div>
+            </div>
+          </div>
+
+          <div class="conf-row">
+            <span class="conf-label">Confidence</span>
+            <div class="conf-track">
+              <div class="conf-fill" id="confFill"></div>
+            </div>
+            <span class="conf-pct" id="confPct"></span>
+          </div>
+
+          <div class="chip-row">
+            <div class="chip">
+              <div class="chip-label">Decision Score</div>
+              <div class="chip-val" id="scoreVal"></div>
+            </div>
+            <div class="chip">
+              <div class="chip-label">Prediction</div>
+              <div class="chip-val" id="predVal"></div>
+            </div>
+            <div class="chip">
+              <div class="chip-label">Token Count</div>
+              <div class="chip-val" id="tokenCount"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── History ── -->
+      <div id="history-wrap">
+        <div class="section-label">Recent analyses</div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+
+    </div><!-- /card -->
+  </main>
+
+  <!-- ═══════════════════ FOOTER ═══════════════════ -->
+  <footer>
+    SVM · sklearn · joblib — trained on Amazon product reviews dataset
+  </footer>
+
+  <!-- ═══════════════════ JAVASCRIPT ═══════════════════ -->
+  <script>
+    const history = [];
+
+    /* ── Fill textarea from example pills ── */
+    function fill(text) {
+      document.getElementById('reviewText').value = text;
+      document.getElementById('reviewText').focus();
+    }
+
+    /* ── Main analyse call ── */
+    async function analyse() {
+      const text = document.getElementById('reviewText').value.trim();
+      if (!text) { document.getElementById('reviewText').focus(); return; }
+
+      setLoading(true);
+
+      try {
+        const res  = await fetch('/predict', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        render(data, text);
+      } catch (e) {
+        alert('Prediction error: ' + e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    /* ── Render result ── */
+    function render(data, rawText) {
+      const isPos   = data.prediction === 1;
+      const card    = document.getElementById('resultCard');
+      const section = document.getElementById('result-section');
+
+      /* class swap */
+      card.className = 'result-card ' + (isPos ? 'positive' : 'negative');
+
+      /* verdict */
+      document.getElementById('verdictIcon').textContent  = isPos ? '😊' : '😞';
+      document.getElementById('verdictLabel').textContent = isPos ? 'Positive' : 'Negative';
+      document.getElementById('verdictSub').textContent   = isPos
+        ? 'This review expresses a favourable opinion.'
+        : 'This review expresses a negative opinion.';
+
+      /* confidence (scaled from decision score magnitude) */
+      const conf = Math.min(Math.abs(data.decision_score) * 22 + 50, 99).toFixed(1);
+      document.getElementById('confFill').style.width = conf + '%';
+      document.getElementById('confPct').textContent  = conf + '%';
+
+      /* chips */
+      document.getElementById('scoreVal').textContent  = data.decision_score.toFixed(4);
+      document.getElementById('predVal').textContent   = isPos ? '1 — Positive' : '0 — Negative';
+      document.getElementById('tokenCount').textContent = data.token_count;
+
+      /* show */
+      section.classList.add('visible');
+
+      /* push to history */
+      history.unshift({ text: rawText, isPos, score: data.decision_score });
+      if (history.length > 6) history.pop();
+      renderHistory();
+    }
+
+    /* ── Render history list ── */
+    function renderHistory() {
+      const wrap = document.getElementById('history-wrap');
+      const list = document.getElementById('historyList');
+      if (!history.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = '';
+      list.innerHTML = history.map((h, i) => `
+        <div class="h-item" onclick="recallHistory(${i})">
+          <div class="h-dot ${h.isPos ? 'positive' : 'negative'}"></div>
+          <span class="h-text">${esc(h.text)}</span>
+          <span class="h-badge ${h.isPos ? 'positive' : 'negative'}">${h.isPos ? 'POS' : 'NEG'}</span>
+        </div>
+      `).join('');
+    }
+
+    /* ── Recall a history item into the textarea ── */
+    function recallHistory(i) {
+      document.getElementById('reviewText').value = history[i].text;
+    }
+
+    /* ── Toggle loading state ── */
+    function setLoading(on) {
+      const btn  = document.getElementById('analyseBtn');
+      const bTxt = document.getElementById('btnText');
+      const spin = document.getElementById('spinner');
+      btn.disabled           = on;
+      bTxt.style.display     = on ? 'none'  : '';
+      spin.style.display     = on ? 'block' : 'none';
+    }
+
+    /* ── HTML escape helper ── */
+    function esc(s) {
+      return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    /* ── Keyboard shortcut: Ctrl/Cmd + Enter ── */
+    document.getElementById('reviewText').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') analyse();
+    });
+  </script>
+
+</body>
+</html>
